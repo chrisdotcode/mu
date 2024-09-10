@@ -5,8 +5,7 @@ set -e
 
 # File descriptor 3 is commandeered for debug output, which may end up being
 # forwarded to standard error.
-if [ -z "$MUSTACHE_DEBUG" ]
-then
+if [ -z "$MUSTACHE_DEBUG" ]; then
 	exec 3>/dev/null
 else
 	exec 3>&2
@@ -58,77 +57,79 @@ _mustache() {
 	# The `read` builtin consumes one line at a time but by now each line
 	# contains only a single character.
 	# shellcheck disable=SC2162
-	while read _M_C
-	do
+	while read _M_C; do
 		echo " _M_C: $_M_C (${#_M_C}), _M_STATE: $_M_STATE" >&3
 		echo "$_M_C" >&5
 		case "$_M_STATE" in
 
-			# Consume a single character literal.  In the event this
-			# character and the previous character have been opening
-			# braces, progress to the "tag" state and initialize the
-			# tag name to the empty string (this invariant is relied
-			# on by the "tag" state).  If this is the first opening
-			# brace, wait and see.  Otherwise, emit this character.
-			"literal")
-				if [ -z "$_M_PREV_C" ]
-				then
-					case "$_M_C" in
-						"{") ;;
-						"") echo;;
-						*) printf "%s" "$_M_C";;
-					esac
-				else
-					case "$_M_PREV_C$_M_C" in
-						"{{") _M_STATE="tag" _M_TAG="";;
-						?"{") ;;
-						*)
-							[ "$_M_PREV_C" = "{" ] && printf "%s" "{"
-							[ -z "$_M_C" ] && echo || printf "%s" "$_M_C";;
-					esac
-				fi >&"$_M_FD";;
-
-			# Consume the tag type and tag.
-			"tag")
+		# Consume a single character literal.  In the event this
+		# character and the previous character have been opening
+		# braces, progress to the "tag" state and initialize the
+		# tag name to the empty string (this invariant is relied
+		# on by the "tag" state).  If this is the first opening
+		# brace, wait and see.  Otherwise, emit this character.
+		"literal")
+			if [ -z "$_M_PREV_C" ]; then
+				case "$_M_C" in
+				"{") ;;
+				"") echo ;;
+				*) printf "%s" "$_M_C" ;;
+				esac
+			else
 				case "$_M_PREV_C$_M_C" in
+				"{{") _M_STATE="tag" _M_TAG="" ;;
+				?"{") ;;
+				*)
+					[ "$_M_PREV_C" = "{" ] && printf "%s" "{"
+					[ -z "$_M_C" ] && echo || printf "%s" "$_M_C"
+					;;
+				esac
+			fi >&"$_M_FD"
+			;;
 
-					# A third opening brace in a row could be treated as
-					# a literal and the beginning of tag, as it is here,
-					# or as the beginning of a tag which begins with an
-					# opening brace.
-					"{{") printf "{" >&"$_M_FD";;
+		# Consume the tag type and tag.
+		"tag")
+			case "$_M_PREV_C$_M_C" in
 
-					# Note the type of this tag, defaulting to "variable".
-					"{#"|"{^"|"{/"|"{!"|"{>") _M_TAG_TYPE="$_M_C" _M_TAG="";;
+			# A third opening brace in a row could be treated as
+			# a literal and the beginning of tag, as it is here,
+			# or as the beginning of a tag which begins with an
+			# opening brace.
+			"{{") printf "{" >&"$_M_FD" ;;
 
-					# A variable tag must note the first character of the
-					# variable name.  Since it's possible that an opening
-					# brace comes in the middle of the tag, check that
-					# this is indeed the beginning of the tag.
-					"{"?)
-						if [ -z "$_M_TAG" ]
-						then
-							_M_TAG_TYPE="variable" _M_TAG="$_M_C"
-						fi;;
+			# Note the type of this tag, defaulting to "variable".
+			"{#" | "{^" | "{/" | "{!" | "{>") _M_TAG_TYPE="$_M_C" _M_TAG="" ;;
 
-					# Two closing braces in a row closes the tag.  The
-					# state resets to "literal" and the tag is processed,
-					# possibly in a subshell.
-					"}}")
-						_M_STATE="literal"
-						_mustache_tag;;
+			# A variable tag must note the first character of the
+			# variable name.  Since it's possible that an opening
+			# brace comes in the middle of the tag, check that
+			# this is indeed the beginning of the tag.
+			"{"?)
+				if [ -z "$_M_TAG" ]; then
+					_M_TAG_TYPE="variable" _M_TAG="$_M_C"
+				fi
+				;;
 
-					# A single closing brace is ignored at first.
-					?"}") ;;
+			# Two closing braces in a row closes the tag.  The
+			# state resets to "literal" and the tag is processed,
+			# possibly in a subshell.
+			"}}")
+				_M_STATE="literal"
+				_mustache_tag
+				;;
 
-					# If the variable continues, the closing brace becomes
-					# part of the variable name.
-					"}"?) _M_TAG="$_M_TAG}";;
+			# A single closing brace is ignored at first.
+			?"}") ;;
 
-					# Any other character becomes part of the variable name.
-					*) _M_TAG="$_M_TAG$_M_C";;
+			# If the variable continues, the closing brace becomes
+			# part of the variable name.
+			"}"?) _M_TAG="$_M_TAG}" ;;
 
-				esac;;
+			# Any other character becomes part of the variable name.
+			*) _M_TAG="$_M_TAG$_M_C" ;;
+
+			esac
+			;;
 
 		esac
 
@@ -143,11 +144,12 @@ _mustache() {
 _mustache_cat() {
 	set +e
 	cat -A <"/dev/null" >"/dev/null" 2>&1
-    _M_STATUS="$?"
+	_M_STATUS="$?"
 	set -e
-	if [ "$_M_STATUS" -eq 1 ]
-    then cat -e
-	else cat -A
+	if [ "$_M_STATUS" -eq 1 ]; then
+		cat -e
+	else
+		cat -A
 	fi
 }
 
@@ -172,11 +174,12 @@ _mustache_sed() {
 "
 	set +e
 	sed -r <"/dev/null" >"/dev/null" 2>&1
-    _M_STATUS="$?"
+	_M_STATUS="$?"
 	set -e
-	if [ "$_M_STATUS" -eq 1 ]
-    then sed -E "s/./&\\$_M_NEWLINE/g; s/\\\\/\\\\\\\\/g"
-	else sed -r "s/./&\\n/g; s/\\\\/\\\\\\\\/g"
+	if [ "$_M_STATUS" -eq 1 ]; then
+		sed -E "s/./&\\$_M_NEWLINE/g; s/\\\\/\\\\\\\\/g"
+	else
+		sed -r "s/./&\\n/g; s/\\\\/\\\\\\\\/g"
 	fi
 }
 
@@ -185,79 +188,82 @@ _mustache_sed() {
 _mustache_tag() {
 	case "$_M_TAG_TYPE" in
 
-		# Variable tags expand to the value of an environment variable
-		# or the empty string if the environment variable is unset.
-		#
-		# If the tag is surrounded by backticks, execute it as a shell
-		# command, instead, using standard output as its value.
-		#
-		# Since the variable tag has been completely consumed, return
-		# to the assumption that everything's a literal until proven
-		# otherwise for this character.
-		"variable")
-			case "$_M_TAG" in
-				"\`"*"\`") _mustache_cmd "$_M_TAG";;
-				*) eval printf "%s" "\"\$$_M_TAG\"";;
-			esac >&"$_M_FD";;
+	# Variable tags expand to the value of an environment variable
+	# or the empty string if the environment variable is unset.
+	#
+	# If the tag is surrounded by backticks, execute it as a shell
+	# command, instead, using standard output as its value.
+	#
+	# Since the variable tag has been completely consumed, return
+	# to the assumption that everything's a literal until proven
+	# otherwise for this character.
+	"variable")
+		case "$_M_TAG" in
+		"\`"*"\`") _mustache_cmd "$_M_TAG" ;;
+		*) eval printf "%s" "\"\$$_M_TAG\"" ;;
+		esac >&"$_M_FD"
+		;;
 
-		# Section tags expand to the expanded value of the section's
-		# literals and tags if and only if the section tag is in the
-		# environment and non-empty.  Inverted section tags expand
-		# if the section tag is empty or unset in the environment.
-		#
-		# If the tag is surrounded by backticks, execute it as a shell
-		# command, instead, and process the section once for each line
-		# of standard output (made available as `_M_LINE`).
-		#
-		# Sections not being expanded are redirected to `/dev/null`.
-		"#"|"^")
-			echo " # _M_TAG: $_M_TAG" >&3
-			_M_TAG_V="$(eval printf "%s" "\"\$$_M_TAG\"")"
-			case "$_M_TAG_TYPE" in
-				"#") [ -z "$_M_TAG_V" ] && _M_FD=4;;
-				"^") [ -n "$_M_TAG_V" ] && _M_FD=4;;
-			esac
-			case "$_M_TAG" in
-				"\`"*"\`")
-					_M_CAPTURE="$(_M_SECTION_TAG="$_M_TAG" _mustache 5>&1 >&4)"
-					echo " _M_CAPTURE: $_M_CAPTURE" | _mustache_cat >&3
-					# shellcheck disable=SC2162
-					_mustache_cmd "$_M_TAG" | while read _M_LINE
-					do
-						echo " _M_LINE: $_M_LINE" >&3
-						(
-							_M_SECTION_TAG="$_M_TAG"
-							echo "$_M_CAPTURE" | _mustache
-						)
-					done;;
-				*)
-					(
-						# shellcheck disable=SC2030
-						_M_SECTION_TAG="$_M_TAG"
-						_mustache
-					);;
-			esac
-			_M_FD=1;;
+	# Section tags expand to the expanded value of the section's
+	# literals and tags if and only if the section tag is in the
+	# environment and non-empty.  Inverted section tags expand
+	# if the section tag is empty or unset in the environment.
+	#
+	# If the tag is surrounded by backticks, execute it as a shell
+	# command, instead, and process the section once for each line
+	# of standard output (made available as `_M_LINE`).
+	#
+	# Sections not being expanded are redirected to `/dev/null`.
+	"#" | "^")
+		echo " # _M_TAG: $_M_TAG" >&3
+		_M_TAG_V="$(eval printf "%s" "\"\$$_M_TAG\"")"
+		case "$_M_TAG_TYPE" in
+		"#") [ -z "$_M_TAG_V" ] && _M_FD=4 ;;
+		"^") [ -n "$_M_TAG_V" ] && _M_FD=4 ;;
+		esac
+		case "$_M_TAG" in
+		"\`"*"\`")
+			_M_CAPTURE="$(_M_SECTION_TAG="$_M_TAG" _mustache 5>&1 >&4)"
+			echo " _M_CAPTURE: $_M_CAPTURE" | _mustache_cat >&3
+			# shellcheck disable=SC2162
+			_mustache_cmd "$_M_TAG" | while read _M_LINE; do
+				echo " _M_LINE: $_M_LINE" >&3
+				(
+					_M_SECTION_TAG="$_M_TAG"
+					echo "$_M_CAPTURE" | _mustache
+				)
+			done
+			;;
+		*)
+			(
+				# shellcheck disable=SC2030
+				_M_SECTION_TAG="$_M_TAG"
+				_mustache
+			)
+			;;
+		esac
+		_M_FD=1
+		;;
 
-		# Closing tags for (inverted) sections must match the expected
-		# tag name.  Any redirections made when the (inverted) section
-		# opened are reset when the section closes.
-		"/")
-			# shellcheck disable=SC2031
-			echo " / _M_TAG: $_M_TAG, _M_SECTION_TAG: $_M_SECTION_TAG" >&3
-			# shellcheck disable=SC2031
-			if [ "$_M_TAG" != "$_M_SECTION_TAG" ]
-			then
-				_mustache_die "mismatched closing tag $_M_TAG," \
-					"expected $_M_SECTION_TAG"
-			fi
-			exit;;
+	# Closing tags for (inverted) sections must match the expected
+	# tag name.  Any redirections made when the (inverted) section
+	# opened are reset when the section closes.
+	"/")
+		# shellcheck disable=SC2031
+		echo " / _M_TAG: $_M_TAG, _M_SECTION_TAG: $_M_SECTION_TAG" >&3
+		# shellcheck disable=SC2031
+		if [ "$_M_TAG" != "$_M_SECTION_TAG" ]; then
+			_mustache_die "mismatched closing tag $_M_TAG," \
+				"expected $_M_SECTION_TAG"
+		fi
+		exit
+		;;
 
-		# Comments do nothing.
-		"!") ;;
+	# Comments do nothing.
+	"!") ;;
 
-		# TODO Partials.
-		">") _mustache_die "{{>$_M_TAG}} syntax not implemented";;
+	# TODO Partials.
+	">") _mustache_die "{{>$_M_TAG}} syntax not implemented" ;;
 
 	esac
 }
