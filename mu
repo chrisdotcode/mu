@@ -5,7 +5,12 @@ set -e
 
 # File descriptor 3 is commandeered for debug output, which may end up being
 # forwarded to standard error.
-[ -z "$MUSTACHE_DEBUG" ] && exec 3>/dev/null || exec 3>&2
+if [ -z "$MUSTACHE_DEBUG" ]
+then
+	exec 3>/dev/null
+else
+	exec 3>&2
+fi
 
 # File descriptor 4 is commandeered for use as a sink for literal and
 # variable output of (inverted) sections that are not destined for standard
@@ -52,6 +57,7 @@ _mustache() {
 
 	# The `read` builtin consumes one line at a time but by now each line
 	# contains only a single character.
+	# shellcheck disable=SC2162
 	while read _M_C
 	do
 		echo " _M_C: $_M_C (${#_M_C}), _M_STATE: $_M_STATE" >&3
@@ -80,7 +86,7 @@ _mustache() {
 							[ "$_M_PREV_C" = "{" ] && printf "%s" "{"
 							[ -z "$_M_C" ] && echo || printf "%s" "$_M_C";;
 					esac
-				fi >&$_M_FD;;
+				fi >&"$_M_FD";;
 
 			# Consume the tag type and tag.
 			"tag")
@@ -90,7 +96,7 @@ _mustache() {
 					# a literal and the beginning of tag, as it is here,
 					# or as the beginning of a tag which begins with an
 					# opening brace.
-					"{{") printf "{" >&$_M_FD;;
+					"{{") printf "{" >&"$_M_FD";;
 
 					# Note the type of this tag, defaulting to "variable".
 					"{#"|"{^"|"{/"|"{!"|"{>") _M_TAG_TYPE="$_M_C" _M_TAG="";;
@@ -192,7 +198,7 @@ _mustache_tag() {
 			case "$_M_TAG" in
 				"\`"*"\`") _mustache_cmd "$_M_TAG";;
 				*) eval printf "%s" "\"\$$_M_TAG\"";;
-			esac >&$_M_FD;;
+			esac >&"$_M_FD";;
 
 		# Section tags expand to the expanded value of the section's
 		# literals and tags if and only if the section tag is in the
@@ -215,6 +221,7 @@ _mustache_tag() {
 				"\`"*"\`")
 					_M_CAPTURE="$(_M_SECTION_TAG="$_M_TAG" _mustache 5>&1 >&4)"
 					echo " _M_CAPTURE: $_M_CAPTURE" | _mustache_cat >&3
+					# shellcheck disable=SC2162
 					_mustache_cmd "$_M_TAG" | while read _M_LINE
 					do
 						echo " _M_LINE: $_M_LINE" >&3
@@ -225,6 +232,7 @@ _mustache_tag() {
 					done;;
 				*)
 					(
+						# shellcheck disable=SC2030
 						_M_SECTION_TAG="$_M_TAG"
 						_mustache
 					);;
@@ -235,7 +243,9 @@ _mustache_tag() {
 		# tag name.  Any redirections made when the (inverted) section
 		# opened are reset when the section closes.
 		"/")
+			# shellcheck disable=SC2031
 			echo " / _M_TAG: $_M_TAG, _M_SECTION_TAG: $_M_SECTION_TAG" >&3
+			# shellcheck disable=SC2031
 			if [ "$_M_TAG" != "$_M_SECTION_TAG" ]
 			then
 				_mustache_die "mismatched closing tag $_M_TAG," \
